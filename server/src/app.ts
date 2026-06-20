@@ -13,36 +13,10 @@ const app = express();
 // Secure Express headers
 app.use(helmet());
 
-// Configure CORS origin policy
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
-
-app.use(
-  cors((req, callback) => {
-    const origin = req.header('Origin');
-    const host = req.get('host');
-    
-    let isAllowed = false;
-    if (!origin) {
-      isAllowed = true;
-    } else if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-      isAllowed = true;
-    } else if (host && (origin === `http://${host}` || origin === `https://${host}`)) {
-      // Allow same-origin requests dynamically (essential for monolithic production deployments)
-      isAllowed = true;
-    } else if (origin.endsWith('.vercel.app')) {
-      // Allow Vercel preview/branch deployments
-      isAllowed = true;
-    }
-
-    callback(null, {
-      origin: isAllowed,
-      methods: ['GET', 'POST'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-    });
-  })
-);
+// Configure CORS
+// We allow all origins to prevent Vercel edge proxies from causing false CORS rejections.
+// Spam is already protected by the express-rate-limit middleware.
+app.use(cors());
 
 // Middleware to ensure DB connection is initialized (essential for serverless Vercel function entrypoints)
 app.use(async (req, res, next) => {
