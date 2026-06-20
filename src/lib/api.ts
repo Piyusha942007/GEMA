@@ -1,7 +1,10 @@
 import type { EnquiryPayload, EnquiryResponse } from '../types/workshop.types';
 
 // Read backend API base url from environment variables
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const apiBase = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = import.meta.env.DEV
+  ? (apiBase || 'http://localhost:5000')
+  : (apiBase && !apiBase.includes('localhost') ? apiBase : '');
 
 /**
  * Submits an enquiry form to the backend API.

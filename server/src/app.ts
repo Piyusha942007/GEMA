@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import enquiryRoutes from './routes/enquiryRoutes';
+import { connectDB } from './config/db';
 
 dotenv.config();
 
@@ -18,19 +19,41 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'];
 
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
-        return callback(null, true);
-      }
-      return callback(new Error('Not allowed by CORS'));
-    },
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+  cors((req, callback) => {
+    const origin = req.header('Origin');
+    const host = req.get('host');
+    
+    let isAllowed = false;
+    if (!origin) {
+      isAllowed = true;
+    } else if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      isAllowed = true;
+    } else if (host && (origin === `http://${host}` || origin === `https://${host}`)) {
+      // Allow same-origin requests dynamically (essential for monolithic production deployments)
+      isAllowed = true;
+    } else if (origin.endsWith('.vercel.app')) {
+      // Allow Vercel preview/branch deployments
+      isAllowed = true;
+    }
+
+    callback(null, {
+      origin: isAllowed,
+      methods: ['GET', 'POST'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    });
   })
 );
+
+// Middleware to ensure DB connection is initialized (essential for serverless Vercel function entrypoints)
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Error initializing database connection:', error);
+    next(); // Fallback anyway to avoid blocking requests if DB fails
+  }
+});
 
 // JSON body parser
 app.use(express.json());

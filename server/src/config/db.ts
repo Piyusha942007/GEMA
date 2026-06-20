@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
 let isInMemory = false;
+let isInitialized = false;
 
 // Local in-memory array fallback
 export const localEnquiries: any[] = [];
@@ -10,14 +11,29 @@ export const localEnquiries: any[] = [];
  * If absent or fails, falls back gracefully to in-memory mode.
  */
 export async function connectDB(): Promise<{ isInMemory: boolean }> {
+  // If we are already connected to MongoDB, return connected state
+  if (mongoose.connection.readyState === 1) {
+    isInMemory = false;
+    isInitialized = true;
+    return { isInMemory };
+  }
+
+  // If already initialized as in-memory fallback, return early to avoid repeating logs/connection attempts
+  if (isInitialized && isInMemory) {
+    return { isInMemory };
+  }
+
   const mongoURI = process.env.MONGODB_URI;
 
   if (!mongoURI) {
-    console.warn('\n================================================================');
-    console.warn('⚠️  WARNING: MONGODB_URI environment variable is not defined!');
-    console.warn('⚠️  Graceful Fallback: Storing enquiries in-memory.');
-    console.warn('================================================================\n');
+    if (!isInitialized) {
+      console.warn('\n================================================================');
+      console.warn('⚠️  WARNING: MONGODB_URI environment variable is not defined!');
+      console.warn('⚠️  Graceful Fallback: Storing enquiries in-memory.');
+      console.warn('================================================================\n');
+    }
     isInMemory = true;
+    isInitialized = true;
     return { isInMemory };
   }
 
@@ -25,11 +41,15 @@ export async function connectDB(): Promise<{ isInMemory: boolean }> {
     const conn = await mongoose.connect(mongoURI);
     console.log(`\n✅ MongoDB Connected: ${conn.connection.host}\n`);
     isInMemory = false;
+    isInitialized = true;
     return { isInMemory };
   } catch (error) {
-    console.error(`\n❌ MongoDB Connection Failed: ${(error as Error).message}`);
-    console.warn('⚠️  Graceful Fallback: Storing enquiries in-memory.');
+    if (!isInitialized) {
+      console.error(`\n❌ MongoDB Connection Failed: ${(error as Error).message}`);
+      console.warn('⚠️  Graceful Fallback: Storing enquiries in-memory.');
+    }
     isInMemory = true;
+    isInitialized = true;
     return { isInMemory };
   }
 }
